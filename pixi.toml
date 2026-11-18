@@ -1,0 +1,18 @@
+[workspace]
+authors = ["Chris Barker <Chris.Barker@noaa.gov>"]
+channels = ["conda-forge"]
+name = "OceanModelChunking"
+platforms = ["osx-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+numpy = ">=2.5.5,<3"
+xarray = ">=2026.9.0,<2027"
+netcdf4 = ">=1.7.5,<2"
+jupyter = ">=1.1.1,<2"
+matplotlib = ">=3.11.2,<4"
+dask = ">=2026.8.0,<2027"
+xarray-subset-grid = ">=0.1.1,<0.2"
+zarr = ">=3.4.2,<4"
