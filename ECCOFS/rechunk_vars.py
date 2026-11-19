@@ -1,4 +1,4 @@
-"""Rechunk ECCOFS `avg` temp from the virtual best-estimate store into a native Icechunk store on OSN.
+"""Rechunk ECCOFS `avg` variables (temp, u, v) from the virtual best-estimate store (source.coop) into native Icechunk on OSN.
 
 Usage: rechunk_vars.py {balanced,map} [--vars temp|u,v] [--local DIR] [--ntime N] [--nlev N]
 
@@ -21,7 +21,7 @@ zarr.config.set({"async.concurrency": 64})
 
 ENDPOINT = "https://usgs.osn.mghpcc.org"
 BUCKET = "esip"
-SRC_PREFIX = "rsignell/eccofs-avg-best"
+SRC_URL = "https://data.source.coop/ocean-icechunks/noaa-eccofs/eccofs-avg-best"
 SOURCE = "s3://noaa-nos-eccofs-pds/"
 
 # chosen with dynamic_chunks.algorithms.iterative_ratio_increase_algo, '10MB', tolerance 0.2
@@ -30,21 +30,18 @@ LAYOUTS = {
     "balanced": dict(time=17, s_rho=5, eta_rho=144, xi_rho=167),
     # aspect ratio: time 4, s_rho unchunked, eta_rho 1, xi_rho 1
     "map": dict(time=3, s_rho=50, eta_rho=120, xi_rho=139),
+    # same chunks as the virtual source (native copy only); ~0.1 MB chunks
+    "original": dict(time=1, s_rho=1, eta_rho=145, xi_rho=167),
 }
+# times per commit when the chunk time length is too small to be efficient
+BATCH = {"original": 4}
 
 
 def open_source():
-    storage = icechunk.s3_storage(
-        bucket=BUCKET, prefix=SRC_PREFIX, region="us-east-1", endpoint_url=ENDPOINT,
-        anonymous=True, force_path_style=True,
-    )
-    config = icechunk.RepositoryConfig.default()
-    config.set_virtual_chunk_container(
-        icechunk.VirtualChunkContainer(SOURCE, icechunk.s3_store(region="us-east-1", anonymous=True))
-    )
-    repo = icechunk.Repository.open(
-        storage, config,
-        authorize_virtual_chunk_access=icechunk.containers_credentials({SOURCE: icechunk.s3_anonymous_credentials()}),
+    """Virtual Icechunk on source.coop (NetCDF bytes live in NOAA's public bucket)."""
+    repo = icechunk.Repository.open(icechunk.http_storage(SRC_URL))
+    repo = repo.reopen(
+        authorize_virtual_chunk_access=icechunk.containers_credentials({SOURCE: icechunk.s3_anonymous_credentials()})
     )
     return xr.open_zarr(repo.readonly_session("main").store, consolidated=False, chunks={})
 
@@ -56,7 +53,7 @@ def dest_storage(name, layout, local):
     cp.read(os.path.expanduser("~/.aws/credentials"))
     p = cp["osn-esip"]
     return icechunk.s3_storage(
-        bucket=BUCKET, prefix=f"rsignell/eccofs-avg-{name}-{layout}-10mb", region="us-east-1",
+        bucket=BUCKET, prefix=f"rsignell/eccofs-avg-{name}-{layout}" + ("" if layout == "original" else "-10mb"), region="us-east-1",
         endpoint_url=ENDPOINT, force_path_style=True,
         access_key_id=p["aws_access_key_id"], secret_access_key=p["aws_secret_access_key"],
     )
@@ -93,7 +90,7 @@ def main():
     print(a.layout, chunks, "->", dict(ds.sizes))
 
     repo = icechunk.Repository.open_or_create(dest_storage(name, a.layout, a.local))
-    nt, bt = ds.sizes["time"], chunks["time"]
+    nt, bt = ds.sizes["time"], BATCH.get(a.layout, chunks["time"])
     done = 0
     try:
         done = repo.readonly_session("main").store and xr.open_zarr(

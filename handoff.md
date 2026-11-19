@@ -70,6 +70,16 @@ Same two layouts as temp, but `u` and `v` live together in one repo per layout (
 - Timing notebook for u,v (like `eccofs_temp_chunking_comparison.ipynb`) comparing the original virtual store with the two new ones.
 - (Script was renamed from `rechunk_temp.py` to `rechunk_vars.py`; older notes and commits use the old name.)
 
+## Update 2026-11-19 (later): full ROMS grid added to the native stores
+
+- Source virtual store is now on source.coop: `https://data.source.coop/ocean-icechunks/noaa-eccofs/eccofs-avg-best` (167 times; our 10 MB stores have 166). The old OSN copy (`rsignell/eccofs-avg-best` and the `-smoke*` prefixes) disappeared; not by us. `rechunk_vars.py` now reads from source.coop.
+- `ECCOFS/add_grid.py {balanced,map,original} --vars {uv,temp}` adds, in one commit per store, to the existing native stores: `lon_/lat_` for rho/u/v/psi, `h`, `mask_rho/u/v/psi`, `angle`, `pm`, `pn`, `f`, `s_w`, `Cs_r`, `Cs_w`, `zeta`, and scalars `Vtransform`(2), `Vstretching`(4), `theta_s`(7), `theta_b`(2), `Tcline`(250), `hc`(250) plus the SGRID `grid` variable. Idempotent: it skips what is present.
+- The scalars are not in the virtual store; they come from the header of one NOAA file (`avg/eccofs_avg_20260608_0001.nc`, which is HDF5 despite its `netCDF-3` attribute), read with h5py via s3fs.
+- `zeta` is rechunked per layout: balanced (28, 240, 278) (dynamic_chunks ratio 1,1,1, tol 0.3), map (9, 481, 556) (hand-picked map-style tile), original (1, 145, 167). It is aligned to each store's time axis by value. Land points are NaN.
+- Done and verified (anonymous read-back; `zeta` at 3 times, `h`, `lon_psi`, `lat_rho`, `mask_u`, `Cs_w`, `s_w` equal to source): `eccofs-avg-uv-balanced-10mb`, `-uv-map-10mb`, `-temp-balanced-10mb`, `-temp-map-10mb`.
+- **Native copy of the original layout** (`rsignell/eccofs-avg-uv-original`, chunks 1,1,145,167, u and v only) was started 20:12 UTC and runs at ~340 s per 4 times, so ~4.7 h total. It resumes if rerun: `python rechunk_vars.py original --vars u,v`. After it finishes run `python add_grid.py original --vars uv`. Do not run add_grid while the copy is writing (commit conflict).
+- `eccofs_suggest_chunks.ipynb` is a standalone notebook (pip installs jbusecke/dynamic_chunks) that shows suggested chunk shapes for the source variables.
+
 ## Possible next steps
 - Repeat the comparison from an in-region machine, or with a dask cluster, since the timings above are network-bound.
 - Try other chunk shapes, for example an intermediate layout with a small time span and a few levels, or the time-long ratio with a larger tolerance.
