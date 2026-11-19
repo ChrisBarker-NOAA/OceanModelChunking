@@ -1,4 +1,4 @@
-"""Rechunk ECCOFS `avg` temp from the virtual best-estimate store into a native Icechunk store on OSN.
+"""Rechunk ECCOFS `avg` variables (temp, u, v) from the virtual best-estimate store (source.coop) into native Icechunk on OSN.
 
 Usage: rechunk_vars.py {balanced,map} [--vars temp|u,v] [--local DIR] [--ntime N] [--nlev N]
 
