@@ -1,6 +1,6 @@
 """Rechunk ECCOFS `avg` temp from the virtual best-estimate store into a native Icechunk store on OSN.
 
-Usage: rechunk_temp.py {balanced,map} [--local DIR] [--ntime N] [--nlev N]
+Usage: rechunk_temp.py {balanced,map} [--vars temp|u,v] [--local DIR] [--ntime N] [--nlev N]
 
 Credentials come from the `osn-esip` profile in ~/.aws/credentials.
 Writes in time batches (one commit each) so an interrupted run resumes where it left off.
@@ -49,14 +49,14 @@ def open_source():
     return xr.open_zarr(repo.readonly_session("main").store, consolidated=False, chunks={})
 
 
-def dest_storage(layout, local):
+def dest_storage(name, layout, local):
     if local:
-        return icechunk.local_filesystem_storage(os.path.join(local, layout))
+        return icechunk.local_filesystem_storage(os.path.join(local, f"{name}-{layout}"))
     cp = configparser.ConfigParser()
     cp.read(os.path.expanduser("~/.aws/credentials"))
     p = cp["osn-esip"]
     return icechunk.s3_storage(
-        bucket=BUCKET, prefix=f"rsignell/eccofs-avg-temp-{layout}-10mb", region="us-east-1",
+        bucket=BUCKET, prefix=f"rsignell/eccofs-avg-{name}-{layout}-10mb", region="us-east-1",
         endpoint_url=ENDPOINT, force_path_style=True,
         access_key_id=p["aws_access_key_id"], secret_access_key=p["aws_secret_access_key"],
     )
@@ -65,26 +65,34 @@ def dest_storage(layout, local):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("layout", choices=LAYOUTS)
+    ap.add_argument("--vars", default="temp", help="comma list from temp,u,v; stored together in one repo")
     ap.add_argument("--local")
     ap.add_argument("--ntime", type=int)
     ap.add_argument("--nlev", type=int)
     a = ap.parse_args()
-    chunks = LAYOUTS[a.layout]
 
-    src = open_source()[["temp"]]
+    names = a.vars.split(",")
+    name = "".join(names)
+    grids = {"temp": "rho", "u": "u", "v": "v"}
+    chunks, keep = {}, ()
+    for n in names:
+        g = grids[n]
+        chunks.update({k.replace("_rho", f"_{g}") if k != "s_rho" else k: c for k, c in LAYOUTS[a.layout].items()})
+        keep += (f"lat_{g}", f"lon_{g}")
+    src = open_source()[names]
     if a.ntime:
         src = src.isel(time=slice(0, a.ntime))
     if a.nlev:
         src = src.isel(s_rho=slice(-a.nlev, None))
-    src = src.drop_vars([v for v in src.coords if v not in src.dims and v not in ("lat_rho", "lon_rho")])
+    src = src.drop_vars([v for v in src.coords if v not in src.dims and v not in keep])
     for v in src.data_vars:
         src[v].encoding.clear()
     for v in src.variables:
         src[v].encoding.pop("chunks", None)
     ds = src.chunk(chunks)
-    print(a.layout, chunks, "->", dict(ds.temp.sizes))
+    print(a.layout, chunks, "->", dict(ds.sizes))
 
-    repo = icechunk.Repository.open_or_create(dest_storage(a.layout, a.local))
+    repo = icechunk.Repository.open_or_create(dest_storage(name, a.layout, a.local))
     nt, bt = ds.sizes["time"], chunks["time"]
     done = 0
     try:
@@ -104,8 +112,8 @@ def main():
             if t0 == 0:
                 to_icechunk(batch, session, mode="w")
             else:
-                to_icechunk(batch.drop_vars(["lat_rho", "lon_rho", "s_rho"]), session, append_dim="time")
-            session.commit(f"temp {a.layout}: times {t0}-{min(t0 + bt, nt)}")
+                to_icechunk(batch.drop_vars([*keep, "s_rho"]), session, append_dim="time")
+            session.commit(f"{name} {a.layout}: times {t0}-{min(t0 + bt, nt)}")
             print(f"times {t0}-{min(t0 + bt, nt)} of {nt}: {time.time() - t:.0f}s", flush=True)
 
 
