@@ -17,7 +17,7 @@ All three hold `temp` with shape (time=166, s_rho=50, eta_rho=1443, xi_rho=1667)
 Both new stores were verified by reading back anonymously. Time axis and `s_rho` match the source, and sampled values at three time/level points are identical to it.
 
 ### Code (pushed to `origin/main` as `2ebfb13`)
-- `ECCOFS/rechunk_temp.py` — `python rechunk_temp.py {balanced,map}`. Reads the virtual store, rechunks with dask (32 threads), and writes native Icechunk in time batches, one commit each. It resumes if interrupted. Write credentials come from the `osn-esip` profile in `~/.aws/credentials`. `--local DIR`, `--ntime`, `--nlev` are for small tests.
+- `ECCOFS/rechunk_vars.py` — `python rechunk_vars.py {balanced,map}`. Reads the virtual store, rechunks with dask (32 threads), and writes native Icechunk in time batches, one commit each. It resumes if interrupted. Write credentials come from the `osn-esip` profile in `~/.aws/credentials`. `--local DIR`, `--ntime`, `--nlev` are for small tests.
 - `ECCOFS/eccofs_temp_chunking_comparison.ipynb` — times five read patterns on all three stores (median of 3 repeats at different times/places) and plots the result. Committed with outputs cleared.
 
 Environment: `/home/conda/code-sprint-2026/envs/code-sprint-2026-rechunking` has icechunk, zarr, xarray and dask. `dynamic_chunks` is not installed there; use `PYTHONPATH=/shared/code-sprint-2026/dynamic_chunks`.
@@ -60,14 +60,14 @@ Same two layouts as temp, but `u` and `v` live together in one repo per layout (
 
 - Each store has `u`, `v` plus `lat/lon_u` and `lat/lon_v`. u and v are on different grids, so dims are `eta_u/xi_u` and `eta_v/xi_v`.
 - Verified by anonymous read-back: sizes and chunks are right, and a sampled point matches between the two layouts. **Not** compared against the source virtual store (temp was).
-- `ECCOFS/rechunk_temp.py` now takes `--vars` (comma list from temp,u,v, stored together; prefix is `eccofs-avg-<vars joined>-<layout>-10mb`). `python rechunk_temp.py map --vars u,v`. Same chunk shapes, with horizontal dim names mapped to the grid. **This change is not committed.**
+- `ECCOFS/rechunk_vars.py` now takes `--vars` (comma list from temp,u,v, stored together; prefix is `eccofs-avg-<vars joined>-<layout>-10mb`). `python rechunk_vars.py map --vars u,v`. Same chunk shapes, with horizontal dim names mapped to the grid. **This change is not committed.**
 - Each full run took ~1 h when the two layouts ran in parallel (map ~73 s per 3-time batch, balanced ~430 s per 17-time batch).
 - Partial per-variable stores from a first attempt (`eccofs-avg-u-balanced-10mb`, `eccofs-avg-v-balanced-10mb`) were deleted from OSN. Other `eccofs-avg*` prefixes (`-smoke*`, `-nosub-smoke`, `eccofs-avg`) are not ours from this session and were left alone.
-- Gotcha: don't use `pkill -f rechunk_temp.py` from the Bash tool, since it matches and kills the tool's own shell. Launch long runs with `setsid nohup ... &`.
+- Gotcha: don't use `pkill -f rechunk_vars.py` from the Bash tool, since it matches and kills the tool's own shell. Launch long runs with `setsid nohup ... &`.
 
 ### Next
 - Timing notebook for u,v (like `eccofs_temp_chunking_comparison.ipynb`) comparing the original virtual store with the two new ones.
-- Commit the `--vars` change to `rechunk_temp.py`.
+- (Script was renamed from `rechunk_temp.py` to `rechunk_vars.py`; older notes and commits use the old name.)
 
 ## Possible next steps
 - Repeat the comparison from an in-region machine, or with a dask cluster, since the timings above are network-bound.

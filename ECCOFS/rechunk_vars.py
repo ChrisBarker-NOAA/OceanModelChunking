@@ -1,6 +1,6 @@
 """Rechunk ECCOFS `avg` temp from the virtual best-estimate store into a native Icechunk store on OSN.
 
-Usage: rechunk_temp.py {balanced,map} [--vars temp|u,v] [--local DIR] [--ntime N] [--nlev N]
+Usage: rechunk_vars.py {balanced,map} [--vars temp|u,v] [--local DIR] [--ntime N] [--nlev N]
 
 Credentials come from the `osn-esip` profile in ~/.aws/credentials.
 Writes in time batches (one commit each) so an interrupted run resumes where it left off.
