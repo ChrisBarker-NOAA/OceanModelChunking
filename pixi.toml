@@ -2,7 +2,7 @@
 authors = ["Chris Barker <Chris.Barker@noaa.gov>"]
 channels = ["conda-forge"]
 name = "OceanModelChunking"
-platforms = ["osx-64"]
+platforms = ["osx-64", "linux-64"]
 version = "0.1.0"
 
 [tasks]
@@ -17,3 +17,5 @@ dask = ">=2026.8.0,<2027"
 xarray-subset-grid = ">=0.1.1,<0.2"
 zarr = ">=3.4.2,<4"
 requests = ">=2.34.2,<3"
+intake = ">=2.0.9,<3"
+s3fs = ">=2026.9.0,<2027"
