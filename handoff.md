@@ -77,7 +77,9 @@ Same two layouts as temp, but `u` and `v` live together in one repo per layout (
 - The scalars are not in the virtual store; they come from the header of one NOAA file (`avg/eccofs_avg_20260608_0001.nc`, which is HDF5 despite its `netCDF-3` attribute), read with h5py via s3fs.
 - `zeta` is rechunked per layout: balanced (28, 240, 278) (dynamic_chunks ratio 1,1,1, tol 0.3), map (9, 481, 556) (hand-picked map-style tile), original (1, 145, 167). It is aligned to each store's time axis by value. Land points are NaN.
 - Done and verified (anonymous read-back; `zeta` at 3 times, `h`, `lon_psi`, `lat_rho`, `mask_u`, `Cs_w`, `s_w` equal to source): `eccofs-avg-uv-balanced-10mb`, `-uv-map-10mb`, `-temp-balanced-10mb`, `-temp-map-10mb`.
-- **Native copy of the original layout** (`rsignell/eccofs-avg-uv-original`, chunks 1,1,145,167, u and v only) was started 20:12 UTC and runs at ~340 s per 4 times, so ~4.7 h total. It resumes if rerun: `python rechunk_vars.py original --vars u,v`. After it finishes run `python add_grid.py original --vars uv`. Do not run add_grid while the copy is writing (commit conflict).
+- **Native copy of the original layout** (`rsignell/eccofs-avg-uv-original`, chunks 1,1,145,167, u and v only): **done 2026-11-20**. The first run (started 2026-11-19 20:12 UTC) stopped at 96/167 times when the pod restarted; it was resumed 02:15 UTC and finished ~03:50 UTC (~320 s per 4 times). `add_grid.py original --vars uv` then ran in one commit (44 commits total). Read back anonymously: 167 times, all grid variables and `zeta` present. Values not compared against the source. This store has 167 times; the other native stores have 166.
+- Issue filed for Chris Barker saying this store is ready for performance testing: https://github.com/ChrisBarker-NOAA/OceanModelChunking/issues/4
+- Gotcha: `pgrep -f "rechunk_vars.py|add_grid.py"` in a wait loop matches the loop's own shell and never exits. Wait on the PID with `kill -0` instead.
 - `eccofs_suggest_chunks.ipynb` is a standalone notebook (pip installs jbusecke/dynamic_chunks) that shows suggested chunk shapes for the source variables.
 
 ## Possible next steps
